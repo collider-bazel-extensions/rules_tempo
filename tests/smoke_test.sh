@@ -118,13 +118,15 @@ if [[ -z "$got" ]]; then
   exit 1
 fi
 
-# Both checks: the trace ID echoed back + our marker attribute. Tempo
-# normalizes hex IDs to lowercase; we already generated lowercase.
-failed=0
-grep -q "$TRACE_ID" <<<"$got" || { echo "smoke_test: response missing trace_id" >&2; failed=1; }
-grep -q "$MARKER"   <<<"$got" || { echo "smoke_test: response missing marker '$MARKER'" >&2; failed=1; }
-
-if (( failed )); then
+# Round-trip check: the unique marker attribute we attached to the
+# span must come back. Tempo's `GET /api/traces/<hex_id>` returning
+# 200 already proves it matched our trace ID — there's no point
+# re-grepping for the trace ID in the body, especially because Tempo
+# emits `traceId` as base64 in the JSON response (OTLP/JSON spec
+# allows either; Tempo's HTTP API picks base64) while we generated +
+# queried by hex. So the marker grep is the canonical assertion.
+if ! grep -q "$MARKER" <<<"$got"; then
+  echo "smoke_test: FAIL — response missing marker '$MARKER'" >&2
   echo "---- response (truncated) ----" >&2
   head -c 4000 <<<"$got" >&2
   exit 1
