@@ -1,0 +1,25 @@
+"""Maintainer-only render flow."""
+
+load("@rules_helm//:defs.bzl", "helm_template")
+load("@rules_shell//shell:sh_binary.bzl", "sh_binary")
+
+# ---- 1.24.4 -----------------------------------------------------------------
+
+helm_template(
+    name = "render_tempo_1_24_4",
+    chart = ["@tempo_chart_1_24_4//:files"],
+    values = ["//config:tempo-values.yaml"],
+    namespace = "tempo",
+    release_name = "tempo",
+)
+
+sh_binary(
+    name = "render_writeback_1_24_4",
+    srcs = ["writeback.sh"],
+    data = [":render_tempo_1_24_4"],
+    args = [
+        "$(rootpath :render_tempo_1_24_4)",
+        "private/manifests/tempo.yaml",
+    ],
+    visibility = ["//visibility:public"],
+)

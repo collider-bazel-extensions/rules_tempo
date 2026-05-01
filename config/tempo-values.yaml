@@ -1,0 +1,47 @@
+# Render-time values for rules_tempo's pinned manifest.
+#
+# Smoke-fixture footprint: single-binary mode (one StatefulSet),
+# `local` filesystem trace storage, multitenancy off, anonymous-usage
+# reporting off, OTLP receiver enabled (gRPC + HTTP), other receivers
+# (jaeger, opencensus) off. Production deployments override every
+# storage / receiver / replica field — and almost certainly migrate
+# to `tempo-distributed` for actual scale.
+
+# Chart's defaults already do most of what we want — only call out
+# the deltas worth pinning explicit:
+
+replicas: 1
+
+tempo:
+  # Telemetry. Off — `reporting_enabled` ships anonymous deployment-
+  # shape data to Grafana Labs in production-default chart values.
+  # Smoke fixtures shouldn't be reporting anything to anyone.
+  reportingEnabled: false
+
+  # Multitenancy. Off so the smoke can POST traces and GET them back
+  # without an `X-Scope-OrgID` header. Default is already false but
+  # pinned explicit.
+  multitenancyEnabled: false
+
+  # Receivers. Default chart values enable jaeger (gRPC + 3 thrift
+  # variants) + opencensus + otlp. The smoke uses OTLP/HTTP only;
+  # turn off the others to shrink the StatefulSet's port count and
+  # keep the rendered manifest tight. Re-enable per-protocol in a
+  # consumer override if a real workload pushes via Jaeger/etc.
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: "0.0.0.0:4317"
+        http:
+          endpoint: "0.0.0.0:4318"
+
+# Persistence. The chart defaults this to enabled with a 10Gi PVC.
+# Smoke fixture is ephemeral — emptyDir is fine.
+persistence:
+  enabled: false
+
+# Anonymous-usage reporting (chart-level, separate from Tempo's own
+# `usage_report.reporting_enabled` above). Off.
+serviceMonitor:
+  enabled: false

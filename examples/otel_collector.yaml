@@ -1,0 +1,91 @@
+# OpenTelemetry Collector configured to receive OTLP from app workloads
+# and forward to Tempo. The realistic production shape: app SDKs send
+# to the local collector (DaemonSet or sidecar), collector batches +
+# adds resource attributes + forwards to Tempo's central endpoint.
+#
+# Sketch — not exercised by the v0.1 smoke. Apply alongside Tempo, then
+# point app workloads at `otel.otel.svc.cluster.local:4317` (gRPC) or
+# `:4318` (HTTP).
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: otel
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-config
+  namespace: otel
+data:
+  config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+    processors:
+      batch:
+        timeout: 5s
+      resource:
+        attributes:
+          - key: deployment.environment
+            value: smoke
+            action: upsert
+    exporters:
+      otlp/tempo:
+        endpoint: tempo.tempo.svc.cluster.local:4317
+        tls:
+          insecure: true
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [batch, resource]
+          exporters: [otlp/tempo]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel
+  namespace: otel
+spec:
+  selector:
+    app: otel
+  ports:
+    - name: otlp-grpc
+      port: 4317
+      targetPort: 4317
+    - name: otlp-http
+      port: 4318
+      targetPort: 4318
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: otel
+  namespace: otel
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: otel
+  template:
+    metadata:
+      labels:
+        app: otel
+    spec:
+      containers:
+        - name: otel
+          image: otel/opentelemetry-collector-contrib:0.117.0
+          args: [--config=/etc/otel/config.yaml]
+          ports:
+            - {name: otlp-grpc, containerPort: 4317}
+            - {name: otlp-http, containerPort: 4318}
+          volumeMounts:
+            - {name: cfg, mountPath: /etc/otel}
+      volumes:
+        - name: cfg
+          configMap: {name: otel-config}
