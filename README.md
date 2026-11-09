@@ -51,8 +51,10 @@ Validated on Linux x86\_64 in CI.
 ## Installation
 
 ```python
-bazel_dep(name = "rules_tempo", version = "0.1.0")
+bazel_dep(name = "rules_tempo", version = "0.1.1")
 ```
+
+The release archive (the tag tarball) leaves out `tests/` and `tools/`, whose packages load dev-only modules, so `bazel query @rules_tempo//...` works for consumers (since v0.1.1). A `git_override` clone still contains them; name packages instead (for example `@rules_tempo//:all`).
 
 Bzlmod-only. Transitively pulls in
 [`rules_kubectl`](https://github.com/collider-bazel-extensions/rules_kubectl).
